@@ -1,0 +1,222 @@
+--[[ 
+   GOD HUB - SECURITY V15
+   SISTEMA DE CORES LOOP + TÍTULO PERSONALIZADO
+]]
+
+local Player = game.Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local CoreGui = game:GetService("CoreGui")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+-- Limpeza
+if CoreGui:FindFirstChild("GodHub_Security") then
+    CoreGui.GodHub_Security:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "GodHub_Security"
+ScreenGui.Parent = CoreGui
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true 
+
+local CoresPadrao = {
+    ON = Color3.fromRGB(46, 204, 113),
+    OFF = Color3.fromRGB(231, 76, 60),
+    Painel = Color3.fromRGB(20, 20, 20),
+    Texto = Color3.fromRGB(255, 255, 255),
+    BotaoCor = Color3.fromRGB(60, 60, 60),
+    Destaque = Color3.fromRGB(255, 215, 0) -- Cor Dourada para o nome "GOD"
+}
+
+-- Configurações de Cores (Loop)
+local ListaCores = {
+    Color3.fromRGB(255, 255, 255), -- Branco
+    Color3.fromRGB(46, 204, 113),  -- Verde
+    Color3.fromRGB(155, 89, 182)   -- Roxo
+}
+local NomesCores = {"BRANCO", "VERDE", "ROXO"}
+local ESP_Index = 1
+local FOV_Index = 1
+
+local Aimbot_Ativo = false
+local ESP_Ativo = false
+local FOV_Raio = 60 
+
+-- 1. Círculo de FOV
+local FOV_Frame = Instance.new("Frame", ScreenGui)
+FOV_Frame.Name = "FOV_Circle"
+FOV_Frame.Size = UDim2.new(0, FOV_Raio * 2, 0, FOV_Raio * 2)
+FOV_Frame.AnchorPoint = Vector2.new(0.5, 0.5)
+FOV_Frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+FOV_Frame.BackgroundTransparency = 1
+FOV_Frame.Visible = false
+
+local UICornerFOV = Instance.new("UICorner", FOV_Frame)
+UICornerFOV.CornerRadius = UDim.new(1, 0)
+
+local UIStroke = Instance.new("UIStroke", FOV_Frame)
+UIStroke.Thickness = 1.5
+UIStroke.Color = ListaCores[FOV_Index]
+
+-- Função de Arrastar
+local function MakeDraggable(obj)
+    local dragging, dragStart, startPos
+    obj.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = obj.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+-- 2. Painel Principal
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 280, 0, 170)
+MainFrame.Position = UDim2.new(0.2, 0, 0.4, 0)
+MainFrame.BackgroundColor3 = CoresPadrao.Painel
+MainFrame.Active = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+MakeDraggable(MainFrame)
+
+-- TÍTULO GOD HUB (Lado interno do X)
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Size = UDim2.new(0, 200, 0, 35)
+Title.Position = UDim2.new(0, 15, 0, 5)
+Title.Text = "GOD HUB"
+Title.TextColor3 = CoresPadrao.Destaque
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 18
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.BackgroundTransparency = 1
+
+-- Botão X
+local CloseBtn = Instance.new("TextButton", MainFrame)
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(1, -35, 0, 5)
+CloseBtn.Text = "X"
+CloseBtn.BackgroundColor3 = CoresPadrao.OFF
+CloseBtn.TextColor3 = CoresPadrao.Texto
+CloseBtn.Font = Enum.Font.SourceSansBold
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 5)
+
+--- BOTÕES ---
+local function CriarBotao(texto, pos, cor)
+    local btn = Instance.new("TextButton", MainFrame)
+    btn.Size = UDim2.new(0, 120, 0, 45)
+    btn.Position = pos
+    btn.BackgroundColor3 = cor
+    btn.Text = texto
+    btn.TextColor3 = CoresPadrao.Texto
+    btn.Font = Enum.Font.SourceSansBold
+    Instance.new("UICorner", btn)
+    return btn
+end
+
+local ESP_Btn = CriarBotao("ESP: OFF", UDim2.new(0, 15, 0, 50), CoresPadrao.OFF)
+local ESP_Color_Btn = CriarBotao("ESP COLOR:\nBRANCO", UDim2.new(0, 145, 0, 50), CoresPadrao.BotaoCor)
+local Aim_Btn = CriarBotao("AIMBOT: OFF", UDim2.new(0, 15, 0, 105), CoresPadrao.OFF)
+local FOV_Color_Btn = CriarBotao("FOV COLOR:\nBRANCO", UDim2.new(0, 145, 0, 105), CoresPadrao.BotaoCor)
+
+-- Lógica de Inimigo
+local function EhInimigo(p)
+    if not p or p == Player or not p.Character then return false end
+    if p.Team ~= nil and Player.Team ~= nil and p.Team == Player.Team then return false end
+    local head = p.Character:FindFirstChild("Head")
+    if head then
+        for _, obj in pairs(head:GetDescendants()) do
+            if obj:IsA("TextLabel") and obj.Visible and obj.TextTransparency < 1 then return false end
+        end
+    end
+    return true
+end
+
+-- Render loop
+RunService.RenderStepped:Connect(function()
+    local centroTela = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    if Aimbot_Ativo then
+        local alvo, menorDist = nil, math.huge
+        for _, p in pairs(game.Players:GetPlayers()) do
+            if EhInimigo(p) and p.Character and p.Character:FindFirstChild("Head") then
+                local pos, vis = Camera:WorldToViewportPoint(p.Character.Head.Position)
+                if vis then
+                    local dist = (Vector2.new(pos.X, pos.Y) - centroTela).Magnitude
+                    if dist <= FOV_Raio and dist < menorDist then alvo = p.Character.Head menorDist = dist end
+                end
+            end
+        end
+        if alvo then Camera.CFrame = CFrame.new(Camera.CFrame.Position, alvo.Position) end
+    end
+    if ESP_Ativo then
+        for _, p in pairs(game.Players:GetPlayers()) do
+            if p ~= Player and p.Character then
+                local hl = p.Character:FindFirstChild("ESP_HL")
+                if EhInimigo(p) then
+                    if not hl then
+                        hl = Instance.new("Highlight", p.Character)
+                        hl.Name = "ESP_HL"
+                        hl.OutlineColor = Color3.new(0, 0, 0)
+                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    end
+                    hl.FillColor = ListaCores[ESP_Index]
+                elseif hl then hl:Destroy() end
+            end
+        end
+    end
+end)
+
+-- Eventos
+ESP_Btn.MouseButton1Click:Connect(function()
+    ESP_Ativo = not ESP_Ativo
+    ESP_Btn.Text = ESP_Ativo and "ESP: ON" or "ESP: OFF"
+    ESP_Btn.BackgroundColor3 = ESP_Ativo and CoresPadrao.ON or CoresPadrao.OFF
+    if not ESP_Ativo then
+        for _, p in pairs(game.Players:GetPlayers()) do
+            if p.Character and p.Character:FindFirstChild("ESP_HL") then p.Character.ESP_HL:Destroy() end
+        end
+    end
+end)
+
+ESP_Color_Btn.MouseButton1Click:Connect(function()
+    ESP_Index = (ESP_Index % #ListaCores) + 1
+    ESP_Color_Btn.Text = "ESP COLOR:\n" .. NomesCores[ESP_Index]
+end)
+
+Aim_Btn.MouseButton1Click:Connect(function()
+    Aimbot_Ativo = not Aimbot_Ativo
+    Aim_Btn.Text = Aimbot_Ativo and "AIMBOT: ON" or "AIMBOT: OFF"
+    Aim_Btn.BackgroundColor3 = Aimbot_Ativo and CoresPadrao.ON or CoresPadrao.OFF
+    FOV_Frame.Visible = Aimbot_Ativo
+end)
+
+FOV_Color_Btn.MouseButton1Click:Connect(function()
+    FOV_Index = (FOV_Index % #ListaCores) + 1
+    FOV_Color_Btn.Text = "FOV COLOR:\n" .. NomesCores[FOV_Index]
+    UIStroke.Color = ListaCores[FOV_Index]
+end)
+
+-- Minimizar
+local MinMenu = Instance.new("TextButton", ScreenGui)
+MinMenu.Size = UDim2.new(0, 80, 0, 40)
+MinMenu.Visible = false
+MinMenu.Text = "GOD HUB"
+MinMenu.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MinMenu.TextColor3 = CoresPadrao.Destaque
+MinMenu.Font = Enum.Font.SourceSansBold
+Instance.new("UICorner", MinMenu)
+MakeDraggable(MinMenu)
+
+CloseBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false MinMenu.Position = MainFrame.Position MinMenu.Visible = true end)
+MinMenu.MouseButton1Click:Connect(function() MinMenu.Visible = false MainFrame.Visible = true MainFrame.Position = MinMenu.Position end)
