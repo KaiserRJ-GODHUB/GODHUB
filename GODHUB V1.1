@@ -1,6 +1,6 @@
 --[[ 
    GOD HUB - SECURITY V15
-   SISTEMA DE CORES LOOP + TÍTULO PERSONALIZADO + GATILHOS DE TIME (SPAWN/TP)
+   SISTEMA DE TIME POR ZONA DE NASCIMENTO (DINÂMICO)
 ]]
 
 local Player = game.Players.LocalPlayer
@@ -9,12 +9,11 @@ local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
--- Tabela de Aliados e Configurações de Gatilho
+-- Variáveis da Lógica de Time
 local TimeAmigo = {} 
-local RaioDeSpawn = 50 
-local UltimaPosicao = Vector3.new(0,0,0)
+local RaioDeSpawn = 60 -- Tamanho da zona de identificação
 
--- Limpeza
+-- Limpeza de interface antiga
 if CoreGui:FindFirstChild("GodHub_Security") then
     CoreGui.GodHub_Security:Destroy()
 end
@@ -42,50 +41,62 @@ local ListaCores = {
 local NomesCores = {"BRANCO", "VERDE", "ROXO"}
 local ESP_Index = 1
 local FOV_Index = 1
-
 local Aimbot_Ativo = false
 local ESP_Ativo = false
 local FOV_Raio = 60 
 
--- FUNÇÃO MESTRE: IDENTIFICAR TIME (Só roda nos gatilhos)
-local function IdentificarAliadosPerto()
+-- ==========================================
+-- MECÂNICA DE IDENTIFICAÇÃO DE TIME NO SPAWN
+-- ==========================================
+
+local function IdentificarTimeNoSpawn()
     if not Player.Character or not Player.Character:FindFirstChild("HumanoidRootPart") then return end
     
     local MeuPos = Player.Character.HumanoidRootPart.Position
-    -- Limpa a lista anterior para não bugar ao mudar de time/sala
-    TimeAmigo = {} 
+    TimeAmigo = {} -- Limpa qualquer lista anterior
     
+    -- Varre os players que estão perto de onde você ACABOU de nascer
     for _, p in pairs(game.Players:GetPlayers()) do
         if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
             local dist = (p.Character.HumanoidRootPart.Position - MeuPos).Magnitude
             if dist <= RaioDeSpawn then
-                TimeAmigo[p.UserId] = true
+                TimeAmigo[p.UserId] = true -- Identifica como Aliado
             end
         end
     end
 end
 
--- GATILHO 1: AO RENASCER
-Player.CharacterAdded:Connect(function(char)
-    task.wait(0.6) -- Tempo para o boneco estabilizar no local de spawn
-    IdentificarAliadosPerto()
+-- Gatilho de Nascimento e Morte
+Player.CharacterAdded:Connect(function(Character)
+    -- 1. Quando morre, a lista é limpa automaticamente pelo evento do Humanoid
+    local Humanoid = Character:WaitForChild("Humanoid")
+    Humanoid.Died:Connect(function()
+        TimeAmigo = {} -- A zona "some" quando você morre
+    end)
+
+    -- 2. Quando nasce, espera o teleporte inicial do jogo e identifica o time
+    task.wait(0.8) 
+    IdentificarTimeNoSpawn()
 end)
 
--- GATILHO 2: AO SER TELEPORTADO (Checagem constante de distância)
+-- Gatilho extra para teleporte (caso o jogo te mova sem você morrer)
+local lastPos = Vector3.new(0,0,0)
 RunService.Heartbeat:Connect(function()
     if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-        local PosAtual = Player.Character.HumanoidRootPart.Position
-        
-        -- Se a distância entre o frame passado e o atual for gigante (>100), foi teleporte
-        if (PosAtual - UltimaPosicao).Magnitude > 100 and UltimaPosicao ~= Vector3.new(0,0,0) then
+        local currentPos = Player.Character.HumanoidRootPart.Position
+        if (currentPos - lastPos).Magnitude > 100 then
             task.wait(0.5)
-            IdentificarAliadosPerto()
+            IdentificarTimeNoSpawn()
         end
-        UltimaPosicao = PosAtual
+        lastPos = currentPos
     end
 end)
 
--- 1. Círculo de FOV
+-- ==========================================
+-- INTERFACE E FUNÇÕES ORIGINAIS
+-- ==========================================
+
+-- Círculo de FOV
 local FOV_Frame = Instance.new("Frame", ScreenGui)
 FOV_Frame.Name = "FOV_Circle"
 FOV_Frame.Size = UDim2.new(0, FOV_Raio * 2, 0, FOV_Raio * 2)
@@ -93,8 +104,7 @@ FOV_Frame.AnchorPoint = Vector2.new(0.5, 0.5)
 FOV_Frame.Position = UDim2.new(0.5, 0, 0.5, 0)
 FOV_Frame.BackgroundTransparency = 1
 FOV_Frame.Visible = false
-local UICornerFOV = Instance.new("UICorner", FOV_Frame)
-UICornerFOV.CornerRadius = UDim.new(1, 0)
+Instance.new("UICorner", FOV_Frame).CornerRadius = UDim.new(1, 0)
 local UIStroke = Instance.new("UIStroke", FOV_Frame)
 UIStroke.Thickness = 1.5
 UIStroke.Color = ListaCores[FOV_Index]
@@ -122,7 +132,7 @@ local function MakeDraggable(obj)
     end)
 end
 
--- 2. Painel Principal
+-- Painel Principal
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Size = UDim2.new(0, 280, 0, 170)
 MainFrame.Position = UDim2.new(0.2, 0, 0.4, 0)
@@ -131,7 +141,6 @@ MainFrame.Active = true
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 MakeDraggable(MainFrame)
 
--- TÍTULO GOD HUB
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(0, 200, 0, 35)
 Title.Position = UDim2.new(0, 15, 0, 5)
@@ -168,14 +177,14 @@ local ESP_Color_Btn = CriarBotao("ESP COLOR:\nBRANCO", UDim2.new(0, 145, 0, 50),
 local Aim_Btn = CriarBotao("AIMBOT: OFF", UDim2.new(0, 15, 0, 105), CoresPadrao.OFF)
 local FOV_Color_Btn = CriarBotao("FOV COLOR:\nBRANCO", UDim2.new(0, 145, 0, 105), CoresPadrao.BotaoCor)
 
--- LÓGICA DE FILTRO (Usa a lista gerada pelos gatilhos)
+-- Lógica de Filtro (Checa se o player é Aliado do Spawn)
 local function EhInimigo(p)
     if not p or p == Player or not p.Character then return false end
-    -- Se estiver na lista de amigos identificados no spawn/tp, ignora
-    if TimeAmigo[p.UserId] then return false end
+    if TimeAmigo[p.UserId] then return false end -- Se estava perto no nascimento, ignora
     return true
 end
 
+-- Render loop (Aimbot e ESP)
 RunService.RenderStepped:Connect(function()
     local centroTela = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     if Aimbot_Ativo then
@@ -239,6 +248,7 @@ FOV_Color_Btn.MouseButton1Click:Connect(function()
     UIStroke.Color = ListaCores[FOV_Index]
 end)
 
+-- Menu Minimizado
 local MinMenu = Instance.new("TextButton", ScreenGui)
 MinMenu.Size = UDim2.new(0, 80, 0, 40)
 MinMenu.Visible = false
