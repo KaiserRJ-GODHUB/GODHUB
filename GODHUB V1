@@ -1,6 +1,6 @@
 --[[ 
    GOD HUB - SECURITY V15
-   SISTEMA DE CORES LOOP + TÍTULO PERSONALIZADO
+   SISTEMA DE CORES LOOP + TÍTULO PERSONALIZADO + TIME POR SPAWN
 ]]
 
 local Player = game.Players.LocalPlayer
@@ -8,6 +8,10 @@ local Camera = workspace.CurrentCamera
 local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+
+-- Tabela para guardar quem o script acha que é do seu time (Adicionado)
+local TimeAmigo = {} 
+local RaioDeSpawn = 50 -- Distância para considerar "amigo" ao nascer (Adicionado)
 
 -- Limpeza
 if CoreGui:FindFirstChild("GodHub_Security") then
@@ -42,6 +46,41 @@ local FOV_Index = 1
 local Aimbot_Ativo = false
 local ESP_Ativo = false
 local FOV_Raio = 60 
+
+--- LÓGICA DE IDENTIFICAÇÃO DE TIME (Adicionado) ---
+
+local function AtualizarAliados()
+    if not Player.Character or not Player.Character:FindFirstChild("HumanoidRootPart") then return end
+    
+    local MeuPos = Player.Character.HumanoidRootPart.Position
+    
+    for _, p in pairs(game.Players:GetPlayers()) do
+        if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local dist = (p.Character.HumanoidRootPart.Position - MeuPos).Magnitude
+            if dist <= RaioDeSpawn then
+                TimeAmigo[p.UserId] = true -- Marca o ID do jogador como aliado
+            end
+        end
+    end
+end
+
+-- Detectar quando você renasce ou é teleportado (Modificado)
+local lastPos = Vector3.new(0,0,0)
+Player.CharacterAdded:Connect(function(char)
+    task.wait(0.5) -- Espera o teleporte do jogo acontecer
+    AtualizarAliados()
+end)
+
+RunService.Heartbeat:Connect(function()
+    if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
+        local currentPos = Player.Character.HumanoidRootPart.Position
+        if (currentPos - lastPos).Magnitude > 100 then -- Teleporte brusco detectado
+            task.wait(0.5)
+            AtualizarAliados()
+        end
+        lastPos = currentPos
+    end
+end)
 
 -- 1. Círculo de FOV
 local FOV_Frame = Instance.new("Frame", ScreenGui)
@@ -95,8 +134,8 @@ MakeDraggable(MainFrame)
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(0, 200, 0, 35)
 Title.Position = UDim2.new(0, 15, 0, 5)
-Title.Text = "GOD HUB"
-Title.TextColor3 = CoresPadrao.Destaque
+Title.Text = "GOD HUB" -- Título Mantido
+Title.TextColor3 = CoresPadrao.Destaque -- Cor Dourada Mantida
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 18
 Title.TextXAlignment = Enum.TextXAlignment.Left
@@ -125,21 +164,17 @@ local function CriarBotao(texto, pos, cor)
     return btn
 end
 
+-- Botões Originais Mantidos
 local ESP_Btn = CriarBotao("ESP: OFF", UDim2.new(0, 15, 0, 50), CoresPadrao.OFF)
 local ESP_Color_Btn = CriarBotao("ESP COLOR:\nBRANCO", UDim2.new(0, 145, 0, 50), CoresPadrao.BotaoCor)
 local Aim_Btn = CriarBotao("AIMBOT: OFF", UDim2.new(0, 15, 0, 105), CoresPadrao.OFF)
 local FOV_Color_Btn = CriarBotao("FOV COLOR:\nBRANCO", UDim2.new(0, 145, 0, 105), CoresPadrao.BotaoCor)
 
--- Lógica de Inimigo
+-- Função de Checagem (Modificada para usar TimeAmigo)
 local function EhInimigo(p)
     if not p or p == Player or not p.Character then return false end
-    if p.Team ~= nil and Player.Team ~= nil and p.Team == Player.Team then return false end
-    local head = p.Character:FindFirstChild("Head")
-    if head then
-        for _, obj in pairs(head:GetDescendants()) do
-            if obj:IsA("TextLabel") and obj.Visible and obj.TextTransparency < 1 then return false end
-        end
-    end
+    -- Se o ID dele estiver na nossa lista de amigos de spawn, ele não é inimigo
+    if TimeAmigo[p.UserId] then return false end 
     return true
 end
 
