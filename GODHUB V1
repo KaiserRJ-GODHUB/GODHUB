@@ -1,6 +1,6 @@
 --[[ 
    GOD HUB - SECURITY V15
-   SISTEMA DE CORES LOOP + TÍTULO PERSONALIZADO + TIME POR SPAWN
+   SISTEMA DE CORES LOOP + TÍTULO PERSONALIZADO + GATILHOS DE TIME (SPAWN/TP)
 ]]
 
 local Player = game.Players.LocalPlayer
@@ -9,9 +9,10 @@ local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
--- Tabela para guardar quem o script acha que é do seu time (Adicionado)
+-- Tabela de Aliados e Configurações de Gatilho
 local TimeAmigo = {} 
-local RaioDeSpawn = 50 -- Distância para considerar "amigo" ao nascer (Adicionado)
+local RaioDeSpawn = 50 
+local UltimaPosicao = Vector3.new(0,0,0)
 
 -- Limpeza
 if CoreGui:FindFirstChild("GodHub_Security") then
@@ -30,14 +31,13 @@ local CoresPadrao = {
     Painel = Color3.fromRGB(20, 20, 20),
     Texto = Color3.fromRGB(255, 255, 255),
     BotaoCor = Color3.fromRGB(60, 60, 60),
-    Destaque = Color3.fromRGB(255, 215, 0) -- Cor Dourada para o nome "GOD"
+    Destaque = Color3.fromRGB(255, 215, 0)
 }
 
--- Configurações de Cores (Loop)
 local ListaCores = {
-    Color3.fromRGB(255, 255, 255), -- Branco
-    Color3.fromRGB(46, 204, 113),  -- Verde
-    Color3.fromRGB(155, 89, 182)   -- Roxo
+    Color3.fromRGB(255, 255, 255),
+    Color3.fromRGB(46, 204, 113),
+    Color3.fromRGB(155, 89, 182)
 }
 local NomesCores = {"BRANCO", "VERDE", "ROXO"}
 local ESP_Index = 1
@@ -47,38 +47,41 @@ local Aimbot_Ativo = false
 local ESP_Ativo = false
 local FOV_Raio = 60 
 
---- LÓGICA DE IDENTIFICAÇÃO DE TIME (Adicionado) ---
-
-local function AtualizarAliados()
+-- FUNÇÃO MESTRE: IDENTIFICAR TIME (Só roda nos gatilhos)
+local function IdentificarAliadosPerto()
     if not Player.Character or not Player.Character:FindFirstChild("HumanoidRootPart") then return end
     
     local MeuPos = Player.Character.HumanoidRootPart.Position
+    -- Limpa a lista anterior para não bugar ao mudar de time/sala
+    TimeAmigo = {} 
     
     for _, p in pairs(game.Players:GetPlayers()) do
         if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
             local dist = (p.Character.HumanoidRootPart.Position - MeuPos).Magnitude
             if dist <= RaioDeSpawn then
-                TimeAmigo[p.UserId] = true -- Marca o ID do jogador como aliado
+                TimeAmigo[p.UserId] = true
             end
         end
     end
 end
 
--- Detectar quando você renasce ou é teleportado (Modificado)
-local lastPos = Vector3.new(0,0,0)
+-- GATILHO 1: AO RENASCER
 Player.CharacterAdded:Connect(function(char)
-    task.wait(0.5) -- Espera o teleporte do jogo acontecer
-    AtualizarAliados()
+    task.wait(0.6) -- Tempo para o boneco estabilizar no local de spawn
+    IdentificarAliadosPerto()
 end)
 
+-- GATILHO 2: AO SER TELEPORTADO (Checagem constante de distância)
 RunService.Heartbeat:Connect(function()
     if Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") then
-        local currentPos = Player.Character.HumanoidRootPart.Position
-        if (currentPos - lastPos).Magnitude > 100 then -- Teleporte brusco detectado
+        local PosAtual = Player.Character.HumanoidRootPart.Position
+        
+        -- Se a distância entre o frame passado e o atual for gigante (>100), foi teleporte
+        if (PosAtual - UltimaPosicao).Magnitude > 100 and UltimaPosicao ~= Vector3.new(0,0,0) then
             task.wait(0.5)
-            AtualizarAliados()
+            IdentificarAliadosPerto()
         end
-        lastPos = currentPos
+        UltimaPosicao = PosAtual
     end
 end)
 
@@ -90,10 +93,8 @@ FOV_Frame.AnchorPoint = Vector2.new(0.5, 0.5)
 FOV_Frame.Position = UDim2.new(0.5, 0, 0.5, 0)
 FOV_Frame.BackgroundTransparency = 1
 FOV_Frame.Visible = false
-
 local UICornerFOV = Instance.new("UICorner", FOV_Frame)
 UICornerFOV.CornerRadius = UDim.new(1, 0)
-
 local UIStroke = Instance.new("UIStroke", FOV_Frame)
 UIStroke.Thickness = 1.5
 UIStroke.Color = ListaCores[FOV_Index]
@@ -130,18 +131,17 @@ MainFrame.Active = true
 Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
 MakeDraggable(MainFrame)
 
--- TÍTULO GOD HUB (Lado interno do X)
+-- TÍTULO GOD HUB
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(0, 200, 0, 35)
 Title.Position = UDim2.new(0, 15, 0, 5)
-Title.Text = "GOD HUB" -- Título Mantido
-Title.TextColor3 = CoresPadrao.Destaque -- Cor Dourada Mantida
+Title.Text = "GOD HUB"
+Title.TextColor3 = CoresPadrao.Destaque
 Title.Font = Enum.Font.SourceSansBold
 Title.TextSize = 18
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.BackgroundTransparency = 1
 
--- Botão X
 local CloseBtn = Instance.new("TextButton", MainFrame)
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
 CloseBtn.Position = UDim2.new(1, -35, 0, 5)
@@ -151,7 +151,6 @@ CloseBtn.TextColor3 = CoresPadrao.Texto
 CloseBtn.Font = Enum.Font.SourceSansBold
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 5)
 
---- BOTÕES ---
 local function CriarBotao(texto, pos, cor)
     local btn = Instance.new("TextButton", MainFrame)
     btn.Size = UDim2.new(0, 120, 0, 45)
@@ -164,21 +163,19 @@ local function CriarBotao(texto, pos, cor)
     return btn
 end
 
--- Botões Originais Mantidos
 local ESP_Btn = CriarBotao("ESP: OFF", UDim2.new(0, 15, 0, 50), CoresPadrao.OFF)
 local ESP_Color_Btn = CriarBotao("ESP COLOR:\nBRANCO", UDim2.new(0, 145, 0, 50), CoresPadrao.BotaoCor)
 local Aim_Btn = CriarBotao("AIMBOT: OFF", UDim2.new(0, 15, 0, 105), CoresPadrao.OFF)
 local FOV_Color_Btn = CriarBotao("FOV COLOR:\nBRANCO", UDim2.new(0, 145, 0, 105), CoresPadrao.BotaoCor)
 
--- Função de Checagem (Modificada para usar TimeAmigo)
+-- LÓGICA DE FILTRO (Usa a lista gerada pelos gatilhos)
 local function EhInimigo(p)
     if not p or p == Player or not p.Character then return false end
-    -- Se o ID dele estiver na nossa lista de amigos de spawn, ele não é inimigo
-    if TimeAmigo[p.UserId] then return false end 
+    -- Se estiver na lista de amigos identificados no spawn/tp, ignora
+    if TimeAmigo[p.UserId] then return false end
     return true
 end
 
--- Render loop
 RunService.RenderStepped:Connect(function()
     local centroTela = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
     if Aimbot_Ativo then
@@ -212,7 +209,7 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Eventos
+-- Eventos de Botões
 ESP_Btn.MouseButton1Click:Connect(function()
     ESP_Ativo = not ESP_Ativo
     ESP_Btn.Text = ESP_Ativo and "ESP: ON" or "ESP: OFF"
@@ -242,7 +239,6 @@ FOV_Color_Btn.MouseButton1Click:Connect(function()
     UIStroke.Color = ListaCores[FOV_Index]
 end)
 
--- Minimizar
 local MinMenu = Instance.new("TextButton", ScreenGui)
 MinMenu.Size = UDim2.new(0, 80, 0, 40)
 MinMenu.Visible = false
